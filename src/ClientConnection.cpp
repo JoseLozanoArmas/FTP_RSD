@@ -153,10 +153,11 @@ void ClientConnection::WaitForRequests() {
 	  // To be implemented by student
       int a0, a1, a2, a3, p0, p1;
         fscanf(fd, "%d, %d, %d, %d,%d, %d", &a0, &a1, &a2, &a3, &p0, &p1);
+        fprintf(fd, "200  OK\n");
         int32_t address = a0 << 24 | a1 << 16 | a2 << 8 | a3; /// PARA CONFIGURAR LA IP, LOS DESPLAZOS ES PARA POSIICONAR 127.0.0.1 == 24, 16, 8, 0
         int16_t port = p0 << 8 | p1; /// PARA CONFIGURAR LOS PUERTOS , LOS DESPLAZOS ES PARA POSIICONAR 56, 17
         data_socket = connect_TCP(address, port);
-        fprintf(fd, "200  OK\n");
+       
       }
       else if (COMMAND("PASV")) {
 	  // To be implemented by students
@@ -198,38 +199,49 @@ void ClientConnection::WaitForRequests() {
 	   // To be implemented by students
         char buffer[1024];
         int maxbuffer = 32;
-        fscanf(fd, "%s", arg);  
-        FILE* file = fopen(arg, "r");
+        fscanf(fd, "%s", arg);
+        strcat(buffer + 1, arg);
+        buffer[0] = '/';  
+        FILE* file = fopen(buffer, "rb");
+        std::cout << arg << std::endl;
         if (file != NULL) {
         fprintf(fd, "150 File status okay; about to open data connection.\n");
+        fflush(fd);
           while (1) {
-            int r = fread(buffer, 1, maxbuffer, file);
+            int r = fread(&buffer, 1, sizeof(buffer), file);
+            //std::cout << r << std::endl;
+
             if (r == 0) {
               break;
             }
-
-            send (data_socket, buffer, r, 0);
+            send (data_socket, &buffer, r, 0);
           }
-          fprintf(fd, "226 Closing data connection.\n");
+          std::cout << "hola" << std::endl;
+          
           fclose(file);
           close(data_socket);
-          
+          fprintf(fd, "226 Closing data connection.\n");
+          fflush(fd);
         } else {
           fprintf(fd, "425 Can't open data connection.\n");
+          fflush(fd);
         } //// RFC 959 PAG 40 Y 50
       }
       else if (COMMAND("LIST")) {
 	   // To be implemented by students	
-       DIR *dir;
-       struct dirent *ent;
-       if((dir = opendir("./")) != NULL) {
-           while ((ent = readdir(dir)) != NULL) {
-              printf("%s\n", ent -> d_name);   
-           }
-           closedir(dir);
-       } else {
-           perror("Está vacío");
-       }
+        DIR *dir = opendir(".");
+        struct dirent *directorio;
+        if(dir) {
+          while ((directorio = readdir(dir)) != NULL) {
+            std::string buffer = directorio -> d_name;
+            buffer += "\r\n";
+            std::cout << buffer << std::endl;
+            send(data_socket, buffer.c_str(), buffer.length(), 0);  ///MIRAR ESTO POR QUE NO VA  
+          }
+          closedir(dir);
+        } else {
+          perror("Está vacío");
+        }
         fprintf(fd, "200  OK\n");
       }
       else if (COMMAND("SYST")) {

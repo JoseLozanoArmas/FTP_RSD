@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <cerrno>
 #include <netdb.h>
-
+ 
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -161,16 +161,16 @@ void ClientConnection::WaitForRequests() {
       else if (COMMAND("PASV")) {
 	  // To be implemented by students
         sockaddr_in socket;
-        socklen_t lenght;
+        socklen_t lenght=sizeof(socket);
         int s = define_socket_TCP(0);
         getsockname(s, (sockaddr*)&socket, &lenght);
         int port = socket.sin_port;
         int p1, p2;
         p1 = port >> 8;
         p2 = port & 0xFF;
-        fprintf(fd, "227 Entering passive mode (127,0,0,1,%d,%d)", p1, p2);
+        fprintf(fd, "227 Entering passive mode (127,0,0,1,%d,%d)\n", p2, p1);
+        fflush(fd);
         data_socket = accept(s, (sockaddr*)&socket, &lenght);
-        fprintf(fd, "200  OK\n");
       }
       else if (COMMAND("STOR") ) {
 	    // To be implemented by students
@@ -193,7 +193,6 @@ void ClientConnection::WaitForRequests() {
         } else {
           fprintf(fd, "No se puede abrir el fichero.\n");
         }
-        fprintf(fd, "200  OK\n");
       }
       else if (COMMAND("RETR")) {
 	   // To be implemented by students
@@ -202,21 +201,22 @@ void ClientConnection::WaitForRequests() {
         fscanf(fd, "%s", arg);  
         FILE* file = fopen(arg, "r");
         if (file != NULL) {
-          fprintf(fd, "Recibiendo fichero...\n");
+        fprintf(fd, "150 File status okay; about to open data connection.\n");
           while (1) {
             int r = fread(buffer, 1, maxbuffer, file);
             if (r == 0) {
               break;
             }
+
             send (data_socket, buffer, r, 0);
           }
-          fprintf(fd, "Se ha recibido el fichero.");
+          fprintf(fd, "226 Closing data connection.\n");
           fclose(file);
           close(data_socket);
+          
         } else {
-          fprintf(fd, "No se puede abrir el fichero.\n");
-        }
-        fprintf(fd, "200  OK\n");
+          fprintf(fd, "425 Can't open data connection.\n");
+        } //// RFC 959 PAG 40 Y 50
       }
       else if (COMMAND("LIST")) {
 	   // To be implemented by students	
@@ -224,7 +224,7 @@ void ClientConnection::WaitForRequests() {
        struct dirent *ent;
        if((dir = opendir("./")) != NULL) {
            while ((ent = readdir(dir)) != NULL) {
-               printf("%s\n", ent -> d_name);    
+              printf("%s\n", ent -> d_name);   
            }
            closedir(dir);
        } else {

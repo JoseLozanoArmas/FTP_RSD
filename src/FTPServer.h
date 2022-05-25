@@ -19,5 +19,5 @@ private:
   int msock;
   std::list<ClientConnection*> connection_list;
 };
- 
+  
 #endif 

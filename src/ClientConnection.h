@@ -17,7 +17,7 @@ public:
     void WaitForRequests();
     void stop();
 
-      
+       
 private:  
    bool ok;  // This variable is a flag that avois that the
 	     // server listens if initialization errors occured.

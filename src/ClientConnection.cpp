@@ -75,7 +75,6 @@ ClientConnection::~ClientConnection() {
 int connect_TCP( uint32_t address,  uint16_t  port) { /// 
      // Implement your code to define a socket here
   struct sockaddr_in sin;
-  struct hostent *hent;
   int s;
 
   memset(&sin, 0, sizeof(sin));
@@ -92,8 +91,6 @@ int connect_TCP( uint32_t address,  uint16_t  port) { ///
     errexit("No se puede conectar con : %s\n", strerror(errno));
  
   return s;
-
-  return -1; // You must return the socket descriptor.
 }
 
 
@@ -153,11 +150,14 @@ void ClientConnection::WaitForRequests() {
 	  // To be implemented by student
       int a0, a1, a2, a3, p0, p1;
         fscanf(fd, "%d, %d, %d, %d,%d, %d", &a0, &a1, &a2, &a3, &p0, &p1);
-        fprintf(fd, "200  OK\n");
         int32_t address = a0 << 24 | a1 << 16 | a2 << 8 | a3; /// PARA CONFIGURAR LA IP, LOS DESPLAZOS ES PARA POSIICONAR 127.0.0.1 == 24, 16, 8, 0
         int16_t port = p0 << 8 | p1; /// PARA CONFIGURAR LOS PUERTOS , LOS DESPLAZOS ES PARA POSIICONAR 56, 17
         data_socket = connect_TCP(address, port);
-       
+        if (data_socket < 0) {
+          fprintf(fd, "425 Can't open data connection.\n");
+        } else {
+          fprintf(fd, "200 OK\n");   
+        }
       }
       else if (COMMAND("PASV")) {
 	  // To be implemented by students
@@ -165,7 +165,7 @@ void ClientConnection::WaitForRequests() {
         socklen_t lenght=sizeof(socket);
         int s = define_socket_TCP(0);
         getsockname(s, (sockaddr*)&socket, &lenght);
-        int port = socket.sin_port;
+        uint16_t port = socket.sin_port;
         int p1, p2;
         p1 = port >> 8;
         p2 = port & 0xFF;
@@ -175,74 +175,73 @@ void ClientConnection::WaitForRequests() {
       }
       else if (COMMAND("STOR") ) {
 	    // To be implemented by students
-        char buffer[1024];
-        int maxbuffer = 32;
+        //char buffer[1024];
+        //int maxbuffer = 32;
         fscanf(fd, "%s", arg);  
-        FILE* file = fopen(arg, "w+");
-        if (file != NULL) {
-          fprintf(fd, "Escribiendo a fichero...\n");
-          while (1) {
-            int bytes_recibidos = recv(data_socket, buffer, maxbuffer, 0);
-            int r = fwrite(buffer, 1, maxbuffer, file);
-            if (bytes_recibidos == 0) {
-              break;
-            }
-          }
-          fprintf(fd, "Se ha sobreescrito el fichero.");
+        FILE* file = fopen(arg, "wb");
+        if (!file) {
+          fprintf(fd, "450 Requested file action not taken.\n");
+          close(data_socket);
+        }
+        else {
+          fprintf(fd, "150 File status okay; about to open data connection.\n");
+          fflush(fd);
+          char buffer[MAX_BUFF];
+          size_t recive;
+          int count(0);
+          do {
+            recive = recv(data_socket, buffer, MAX_BUFF, 0);
+            fwrite(buffer, 1, recive, file);
+          } while (recive != 0);
+          fprintf(fd, "226 Closing data connection.\n");
+           fflush(fd);
           fclose(file);
           close(data_socket);
-        } else {
-          fprintf(fd, "No se puede abrir el fichero.\n");
         }
       }
       else if (COMMAND("RETR")) {
 	   // To be implemented by students
-        char buffer[1024];
-        int maxbuffer = 32;
         fscanf(fd, "%s", arg);
-        strcat(buffer + 1, arg);
-        buffer[0] = '/';  
-        FILE* file = fopen(buffer, "rb");
-        std::cout << arg << std::endl;
-        if (file != NULL) {
-        fprintf(fd, "150 File status okay; about to open data connection.\n");
-        fflush(fd);
-          while (1) {
-            int r = fread(&buffer, 1, sizeof(buffer), file);
-            //std::cout << r << std::endl;
+        printf("(RETR):%s\n", arg);
+        FILE* file = fopen(arg, "rb");
+        if (!file) {
+          fprintf(fd, "550 Requested action not taken.\n");
+          fflush(fd);
+        }
+        else {
+          fprintf(fd,"150 File status okay; about to open data connection.\n");
+          fflush(fd);
+          char buff[MAX_BUFF];
+          int aux;
 
-            if (r == 0) {
-              break;
-            }
-            send (data_socket, &buffer, r, 0);
-          }
-          std::cout << "hola" << std::endl;
+          do {
+            aux = fread(buff, 1,MAX_BUFF, file);
+            send(data_socket, buff, aux, 0);
+          } while (aux == MAX_BUFF);
           
-          fclose(file);
-          close(data_socket);
           fprintf(fd, "226 Closing data connection.\n");
           fflush(fd);
-        } else {
-          fprintf(fd, "425 Can't open data connection.\n");
-          fflush(fd);
-        } //// RFC 959 PAG 40 Y 50
-      }
-      else if (COMMAND("LIST")) {
+          fclose(file);
+          close(data_socket);
+        }
+          
+      }else if (COMMAND("LIST")) {
 	   // To be implemented by students	
         DIR *dir = opendir(".");
         struct dirent *directorio;
-        if(dir) {
-          while ((directorio = readdir(dir)) != NULL) {
-            std::string buffer = directorio -> d_name;
-            buffer += "\r\n";
-            std::cout << buffer << std::endl;
-            send(data_socket, buffer.c_str(), buffer.length(), 0);  ///MIRAR ESTO POR QUE NO VA  
+
+        if(dir > 0) {
+          fprintf(fd,"125 Data connection already open; transfer starting.\n");
+          while ((directorio = readdir(dir))) {
+            std::string buffer = directorio->d_name;
+            buffer += "\x0D\x0A";
+            send(data_socket, buffer.c_str(), buffer.size(), 0);  ///MIRAR ESTO POR QUE NO VA  
           }
+          close(data_socket);
           closedir(dir);
-        } else {
-          perror("Está vacío");
-        }
-        fprintf(fd, "200  OK\n");
+          fprintf(fd,"250 Requested file action okay, completed\n");
+        } 
+        //fprintf(fd, "200  OK\n");
       }
       else if (COMMAND("SYST")) {
            fprintf(fd, "215 UNIX Type: L8.\n");   

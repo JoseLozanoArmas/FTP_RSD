@@ -56,7 +56,6 @@ int define_socket_TCP(int port) {
     
     return s;
   
-  return -1;
 }
 
 

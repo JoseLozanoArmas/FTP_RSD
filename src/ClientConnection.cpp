@@ -36,9 +36,6 @@
 #include "ClientConnection.h"
 #include "FTPServer.h"
 
-
-
-
 ClientConnection::ClientConnection(int s) {
     int sock = (int)(s);
   
@@ -119,36 +116,30 @@ void ClientConnection::stop() {
 // are allowed to add auxiliary methods if necessary.
 
 void ClientConnection::WaitForRequests() {
-    if (!ok) {
-	 return;
-    }
+  if (!ok) {
+	  return;
+  }
     
-    fprintf(fd, "220 Service ready\n");
+  fprintf(fd, "220 Service ready\n");
   
-    while(!parar) {
-
-      fscanf(fd, "%s", command);
-      if (COMMAND("USER")) {
+  while(!parar) {
+    fscanf(fd, "%s", command);
+    if (COMMAND("USER")) {
 	    fscanf(fd, "%s", arg);
 	    fprintf(fd, "331 User name ok, need password\n");
-      }
-      else if (COMMAND("PWD")) {
-	   
-      }
-      else if (COMMAND("PASS")) {
+    } else if (COMMAND("PWD")) {
+	
+      } else if (COMMAND("PASS")) {
         fscanf(fd, "%s", arg);
         if(strcmp(arg,"1234") == 0){
-            fprintf(fd, "230 User logged in\n");
+          fprintf(fd, "230 User logged in\n");
+        } else{
+          fprintf(fd, "530 Not logged in.\n");
+          parar = true;
         }
-        else{
-            fprintf(fd, "530 Not logged in.\n");
-            parar = true;
-        }
-	   
-      }
-      else if (COMMAND("PORT")) {
+      } else if (COMMAND("PORT")) {
 	  // To be implemented by student
-      int a0, a1, a2, a3, p0, p1;
+        int a0, a1, a2, a3, p0, p1;
         fscanf(fd, "%d, %d, %d, %d,%d, %d", &a0, &a1, &a2, &a3, &p0, &p1);
         int32_t address = a0 << 24 | a1 << 16 | a2 << 8 | a3; /// PARA CONFIGURAR LA IP, LOS DESPLAZOS ES PARA POSIICONAR 127.0.0.1 == 24, 16, 8, 0
         int16_t port = p0 << 8 | p1; /// PARA CONFIGURAR LOS PUERTOS , LOS DESPLAZOS ES PARA POSIICONAR 56, 17
@@ -158,8 +149,7 @@ void ClientConnection::WaitForRequests() {
         } else {
           fprintf(fd, "200 OK\n");   
         }
-      }
-      else if (COMMAND("PASV")) {
+      } else if (COMMAND("PASV")) {
 	  // To be implemented by students
         sockaddr_in socket;
         socklen_t lenght=sizeof(socket);
@@ -172,11 +162,8 @@ void ClientConnection::WaitForRequests() {
         fprintf(fd, "227 Entering passive mode (127,0,0,1,%d,%d)\n", p2, p1);
         fflush(fd);
         data_socket = accept(s, (sockaddr*)&socket, &lenght);
-      }
-      else if (COMMAND("STOR") ) {
+      } else if (COMMAND("STOR") ) {
 	    // To be implemented by students
-        //char buffer[1024];
-        //int maxbuffer = 32;
         fscanf(fd, "%s", arg);  
         FILE* file = fopen(arg, "wb");
         if (!file) {
